@@ -23,7 +23,10 @@
     "demo:off": "tsx scripts/purge-demo-data.ts",
     "demo:disable": "tsx scripts/purge-demo-data.ts --keep",
     "db:backfill-regulatory": "tsx scripts/backfill-regulatory.ts",
-    "db:reanalyse": "tsx scripts/reanalyse.ts"
+    "db:reanalyse": "tsx scripts/reanalyse.ts",
+    "vercel-build": "node scripts/sync-db-provider.mjs && prisma generate && prisma db push && next build",
+    "db:sync-provider": "node scripts/sync-db-provider.mjs",
+    "deploy:seed": "node scripts/sync-db-provider.mjs && prisma generate && tsx prisma/seed.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.7",

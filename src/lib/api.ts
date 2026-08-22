@@ -3,6 +3,7 @@ import { ZodError, type ZodType } from 'zod';
 import { serverEnv } from '@/lib/env';
 import { clientKey, rateLimit } from '@/lib/rate-limit';
 import { createLogger } from '@/lib/logger';
+import { denyIfReadOnly } from '@/lib/access';
 
 const log = createLogger('api');
 
@@ -51,6 +52,11 @@ export function withApi(
         },
       );
     }
+
+    // Read-only mode is enforced here rather than per route, so a new endpoint
+    // cannot accidentally ship without the guard.
+    const denied = denyIfReadOnly(request);
+    if (denied) return denied;
 
     try {
       const response = await handler(request, context);

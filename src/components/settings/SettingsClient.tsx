@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Building2, Palette, Plus, Settings2, Tag, Trash2 } from 'lucide-react';
+import { Building2, Eye, Palette, Plus, Settings2, Tag, Trash2 } from 'lucide-react';
 import {
   Badge, Button, Card, CardBody, CardHeader, ErrorState, Input, InfoTip, Modal, Select,
   Skeleton, Tabs, Textarea, Toggle,
 } from '@/components/ui';
 import { Logo } from '@/components/layout/Logo';
 import { useApi, mutate } from '@/hooks/useApi';
-import { useSettings, useToast } from '@/components/providers';
+import { useCanWrite, useSettings, useToast } from '@/components/providers';
 import { SUPPORTED_TIMEZONES } from '@/lib/time';
 import { REFRESH_INTERVALS, COMPANY_GROUP_LABELS, type CompanyGroup } from '@/lib/constants';
 
@@ -23,9 +23,20 @@ interface CompanyRow {
 
 export function SettingsClient() {
   const [tab, setTab] = React.useState('branding');
+  const { access } = useSettings();
 
   return (
     <div className="space-y-5">
+      {access.readOnly && !access.canWrite ? (
+        <div className="flex items-start gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg-subtle)] p-3 text-xs text-muted">
+          <Eye className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>
+            This dashboard is published in <strong>read-only</strong> mode. Everything here is
+            visible so you can see how the tracking is configured, but saving is disabled.
+            Browsing, filtering, PNG cards and PowerPoint briefings all work normally.
+          </p>
+        </div>
+      ) : null}
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <Settings2 className="h-5 w-5 text-[var(--accent)]" aria-hidden="true" />
@@ -61,6 +72,7 @@ export function SettingsClient() {
 
 function BrandingSettings() {
   const { settings, save, saving } = useSettings();
+  const canWrite = useCanWrite();
   const { push } = useToast();
   const [form, setForm] = React.useState(settings);
 
@@ -248,7 +260,13 @@ function BrandingSettings() {
       </Card>
 
       <div className="lg:col-span-2">
-        <Button variant="primary" onClick={() => void submit()} loading={saving}>
+        <Button
+          variant="primary"
+          onClick={() => void submit()}
+          loading={saving}
+          disabled={!canWrite}
+          title={canWrite ? undefined : 'Saving is disabled on this published dashboard'}
+        >
           Save settings
         </Button>
       </div>

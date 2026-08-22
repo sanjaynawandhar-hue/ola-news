@@ -5,11 +5,20 @@ import type { BrandingConfig } from '@/types';
 
 /* ------------------------------------------------------------- Settings -- */
 
+export interface AccessState {
+  /** True when the deployment is published in public read-only mode. */
+  readOnly: boolean;
+  /** True when this visitor may perform write operations. */
+  canWrite: boolean;
+  adminTokenConfigured: boolean;
+}
+
 interface SettingsContextValue {
   settings: BrandingConfig;
   refresh: () => Promise<void>;
   save: (patch: Partial<BrandingConfig>) => Promise<BrandingConfig>;
   saving: boolean;
+  access: AccessState;
 }
 
 const SettingsContext = React.createContext<SettingsContextValue | null>(null);
@@ -18,6 +27,11 @@ export function useSettings() {
   const ctx = React.useContext(SettingsContext);
   if (!ctx) throw new Error('useSettings must be used inside <Providers>');
   return ctx;
+}
+
+/** Convenience: true when the visitor may change things. */
+export function useCanWrite(): boolean {
+  return useSettings().access.canWrite;
 }
 
 /* ---------------------------------------------------------------- Theme -- */
@@ -87,6 +101,29 @@ export function Providers({
 }) {
   const [settings, setSettings] = React.useState(initialSettings);
   const [saving, setSaving] = React.useState(false);
+  // Assume writable until the server says otherwise, so a local install never
+  // flickers into a disabled state.
+  const [access, setAccess] = React.useState<AccessState>({
+    readOnly: false,
+    canWrite: true,
+    adminTokenConfigured: false,
+  });
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/access', { cache: 'no-store' });
+        if (!response.ok || cancelled) return;
+        setAccess((await response.json()) as AccessState);
+      } catch {
+        /* Non-fatal: the server still refuses unauthorised writes. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [theme, setThemeState] = React.useState<ThemeMode>(
     (initialSettings.theme as ThemeMode) ?? 'system',
   );
@@ -162,7 +199,7 @@ export function Providers({
   );
 
   return (
-    <SettingsContext.Provider value={{ settings, refresh, save, saving }}>
+    <SettingsContext.Provider value={{ settings, refresh, save, saving, access }}>
       <ThemeContext.Provider value={{ theme, resolved, setTheme, mounted }}>
         <ToastContext.Provider value={{ toasts, push, dismiss }}>
           {children}

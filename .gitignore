@@ -56,3 +56,8 @@ next-env.d.ts
 /.windsurf/
 /.claude/skills/
 /skills-lock.json
+
+# A clone of this repo checked out inside itself (e.g. to test the setup steps).
+# Untracked but not ignored, it would otherwise be swept in by `git add -A`
+# — along with its own .env.
+/ola-news/

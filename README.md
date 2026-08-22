@@ -33,7 +33,7 @@ PowerPoint briefings.
 - [Alerts](#alerts)
 - [Security and compliance](#security-and-compliance)
 - [Testing](#testing)
-- [Deployment](#deployment)
+- [Deploy it somewhere shareable](#deploy-it-somewhere-shareable)
 - [Known limitations](#known-limitations)
 
 ---
@@ -565,6 +565,86 @@ npm start
 `@napi-rs/canvas`, `better-sqlite3` and `pptxgenjs` are declared in
 `serverExternalPackages`, so they are loaded at runtime rather than bundled. Both export
 routes declare an extended `maxDuration`.
+
+---
+
+## Deploy it somewhere shareable
+
+The dashboard runs on SQLite locally, which is perfect for one machine and
+impossible on serverless — those filesystems are ephemeral and unshared, so every
+deploy would wipe the data. Production therefore needs hosted PostgreSQL. The build
+is self-configuring: `scripts/sync-db-provider.mjs` sets the Prisma provider from
+`DATABASE_URL`, and refuses to build on Vercel if that still points at SQLite.
+
+### Vercel + Neon (free tier, ~5 minutes)
+
+```bash
+npm i -g vercel
+vercel login
+```
+
+1. **Create a PostgreSQL database.** In the Vercel dashboard: *Storage → Create →
+   Neon (Serverless Postgres)*, or use any provider that gives you a connection
+   string (Supabase, Prisma Postgres, Railway).
+
+2. **Link and configure the project:**
+
+   ```bash
+   vercel link
+   vercel env add DATABASE_URL production           # the Postgres connection string
+   vercel env add OLA_NEWS_PUBLIC_READ_ONLY production   # true
+   vercel env add OLA_NEWS_ADMIN_TOKEN production        # openssl rand -hex 32
+   vercel env add OLA_NEWS_BRAND_NAME production         # your name
+   ```
+
+3. **Deploy:**
+
+   ```bash
+   vercel --prod
+   ```
+
+   `vercel-build` runs the provider sync, `prisma generate`, `prisma db push` and
+   `next build`. The database schema is created on first deploy.
+
+4. **Seed the tracked companies, sources and categories** (once, against the
+   production database):
+
+   ```bash
+   vercel env pull .env.production.local
+   DATABASE_URL="$(grep DATABASE_URL .env.production.local | cut -d= -f2- | tr -d '\"')" npm run deploy:seed
+   ```
+
+5. **Collect the first news.** Refreshing is a write, so it needs the admin token:
+
+   ```bash
+   curl -X POST https://<your-app>.vercel.app/api/refresh \
+     -H "x-admin-token: <your token>"
+   ```
+
+   To keep it fresh automatically, add a Vercel Cron job hitting `/api/refresh`
+   with the same header.
+
+### Publishing read-only
+
+The dashboard has no user accounts. Set `OLA_NEWS_PUBLIC_READ_ONLY=true` before
+exposing it publicly and visitors get everything worth showing — the feed, filters,
+charts, regulatory tracker, PNG cards and PowerPoint briefings — while configuration
+changes, deletions and manual refreshes are refused with a 403.
+
+Administrator actions are unlocked by sending `OLA_NEWS_ADMIN_TOKEN` as an
+`x-admin-token` header or an `ola_news_admin` cookie. To administer from the browser,
+set the cookie once in the console:
+
+```js
+document.cookie = 'ola_news_admin=YOUR_TOKEN; path=/; max-age=31536000; samesite=lax';
+```
+
+The guard is enforced centrally in `withApi`, so a new endpoint cannot ship without
+it. Leave the flag unset for a local install and nothing changes.
+
+> **Native dependencies.** PNG rendering uses `@napi-rs/canvas`, which ships prebuilt
+> Linux binaries and works on Vercel's Node runtime; it is listed in
+> `serverExternalPackages` so it is loaded at runtime rather than bundled.
 
 ---
 

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Menu, Moon, Presentation, RefreshCw, Search, Settings2, Sun, X } from 'lucide-react';
+import { Eye, Menu, Moon, Presentation, RefreshCw, Search, Settings2, Sun, X } from 'lucide-react';
 import { Button, Select, Spinner } from '@/components/ui';
 import { Logo } from './Logo';
 import { Sidebar } from './Sidebar';
@@ -24,7 +24,7 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { settings } = useSettings();
+  const { settings, access } = useSettings();
   const { setTheme } = useTheme();
   const { running, start, lastSuccessAt, setPanelOpen, job } = useRefresh();
 
@@ -140,13 +140,29 @@ export function Header() {
               </span>
             </button>
 
+            {access.readOnly ? (
+              <span
+                className="hidden items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-subtle)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--fg-muted)] sm:inline-flex"
+                title="This dashboard is published read-only. Browsing, filtering and exports are open to everyone; configuration changes need the administrator token."
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                Read-only
+              </span>
+            ) : null}
+
             <Button
               variant="primary"
               size="md"
               onClick={() => void start()}
-              disabled={running}
+              disabled={running || !access.canWrite}
               aria-live="polite"
-              title={running ? 'A refresh is already running' : 'Fetch the latest items from every enabled source'}
+              title={
+                !access.canWrite
+                  ? 'Refreshing is disabled on this published dashboard'
+                  : running
+                    ? 'A refresh is already running'
+                    : 'Fetch the latest items from every enabled source'
+              }
             >
               {running ? (
                 <Spinner className="h-3.5 w-3.5" />

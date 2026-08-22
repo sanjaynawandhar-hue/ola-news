@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Prisma Client is generated code and is not linted.
     "src/generated/**",
+    // A clone of this repo checked out inside itself (e.g. to try the setup
+    // steps). Its own .next/ and src/ would otherwise be linted as if they
+    // were part of this project.
+    "ola-news/**",
   ]),
   {
     rules: {
