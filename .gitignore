@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …but the annotated template must ship: the README's setup step is
+# `cp .env.example .env`, so the repo is unusable without it.
+!.env.example
 
 # vercel
 .vercel
