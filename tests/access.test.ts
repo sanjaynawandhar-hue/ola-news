@@ -179,3 +179,35 @@ describe('scheduled refresh endpoint', () => {
     expect(config.crons[0].schedule).toMatch(/^[\d*/, -]+$/);
   });
 });
+
+describe('KPI tiles', () => {
+  /**
+   * Tailwind's `group-hover:` matches ANY ancestor carrying `.group`, so a bare
+   * `group` on the clickable tile also fired every tooltip nested inside it —
+   * a hint popped up whenever the cursor touched the card the user meant to
+   * click. The tile must use a NAMED group.
+   */
+  it('uses a named group so nested tooltips are not triggered by tile hover', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile('src/components/dashboard/KpiCard.tsx', 'utf8');
+
+    // No bare `group ` in a className on the card itself.
+    expect(source).not.toMatch(/'surface group block/);
+    expect(source).toMatch(/group\/kpi/);
+    // Every group-driven style on the card must be namespaced too. Comments
+    // discuss the bare form, so only executable lines are inspected.
+    const code = source
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+    expect(code.match(/group-hover:/g) ?? []).toHaveLength(0);
+    expect(code.match(/group-focus-visible:/g) ?? []).toHaveLength(0);
+  });
+
+  it('does not render a hover hint on a clickable tile', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile('src/components/dashboard/KpiCard.tsx', 'utf8');
+    // The InfoTip is rendered only when the tile has no link.
+    expect(source).toMatch(/tooltip && !href \? <InfoTip/);
+  });
+});

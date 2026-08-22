@@ -309,13 +309,26 @@ export async function getOverview(
     take: 20000,
   });
 
-  const [allTotal, regulatoryTotal, entityRows, categories, companies, sources, lastJob] = await Promise.all([
+  const [allTotal, regulatoryTotal, groupRows, entityRows, categories, companies, sources, lastJob] = await Promise.all([
     prisma.article.count({ where: baseWhere }),
     // Counted from the regulatory tracker itself. Regulatory documents are
     // recorded independently of the feed's relevance threshold — a sector-wide
     // circular is a compliance item even when it names no tracked company — so
     // counting the underlying articles would under-report it.
     prisma.regulatoryDocument.count({ where: { issueDate: { gte: since } } }),
+    // Deliberately NOT scoped by the selected group. `byGroup` is the
+    // cross-group comparison — it drives the tab counts and the comparison
+    // chart, so scoping it made every unselected tab read zero.
+    prisma.article.findMany({
+      where: { processingStatus: 'PROCESSED', publishedAt: { gte: since } },
+      select: {
+        publishedAt: true,
+        analysis: { select: { primaryCompanyKey: true } },
+        sentiment: { select: { label: true, score: true } },
+        risk: { select: { level: true } },
+      },
+      take: 20000,
+    }),
     prisma.articleEntity.findMany({
       where: {
         type: { in: ['PERSON', 'PRODUCT'] },
@@ -375,7 +388,16 @@ export async function getOverview(
       topicCounts.set(topic, (topicCounts.get(topic) ?? 0) + 1);
     }
 
+  }
+
+  // Built from the unscoped rows so the tab counts stay stable whichever tab
+  // is selected.
+  for (const row of groupRows) {
+    const group = row.analysis?.primaryCompanyKey
+      ? companyGroups.get(row.analysis.primaryCompanyKey)
+      : undefined;
     const groupKey = group ?? 'market';
+    const label = row.sentiment?.label ?? 'NEUTRAL';
     const stats = groupStats.get(groupKey) ?? { total: 0, last24h: 0, positive: 0, negative: 0, highRisk: 0, sentimentSum: 0 };
     stats.total += 1;
     stats.sentimentSum += row.sentiment?.score ?? 0;
