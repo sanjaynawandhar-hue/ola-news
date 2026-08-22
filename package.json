@@ -26,7 +26,10 @@
     "db:reanalyse": "tsx scripts/reanalyse.ts",
     "vercel-build": "node scripts/sync-db-provider.mjs && prisma generate && prisma db push && next build",
     "db:sync-provider": "node scripts/sync-db-provider.mjs",
-    "deploy:seed": "node scripts/sync-db-provider.mjs && prisma generate && tsx prisma/seed.ts"
+    "deploy:seed": "node scripts/sync-db-provider.mjs && prisma generate && tsx prisma/seed.ts",
+    "dev:lan": "next dev -H 0.0.0.0",
+    "start:lan": "next start -H 0.0.0.0",
+    "share": "node scripts/share-on-lan.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.7",

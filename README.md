@@ -568,6 +568,34 @@ routes declare an extended `maxDuration`.
 
 ---
 
+## Open it on your phone or another computer
+
+**Same Wi-Fi** — no accounts, works in about a minute:
+
+```bash
+npm run build && npm run start:lan     # bind to every network interface
+npm run share                          # prints the address + a QR code
+```
+
+Scan the QR with your phone camera, or type the printed
+`http://<your-ip>:3000` into any browser on the same network.
+
+> Use `start:lan` (production), not `dev:lan`. The dev server works over the network
+> but its hot-reload websocket cannot reach another device, which leaves pages stuck
+> on loading placeholders. Production mode has no such socket.
+
+Both devices must be on the same Wi-Fi and this machine must stay awake. The
+dashboard has no login, so on a shared or public network start it read-only:
+
+```bash
+OLA_NEWS_PUBLIC_READ_ONLY=true npm run start:lan
+```
+
+**From anywhere** — deploy it, see below. That is the only option that survives
+closing your laptop.
+
+---
+
 ## Deploy it somewhere shareable
 
 The dashboard runs on SQLite locally, which is perfect for one machine and
