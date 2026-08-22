@@ -1,26 +1,170 @@
 @import "tailwindcss";
 
+/*
+  Tailwind v4 resolves `dark:` from prefers-color-scheme by default. This app
+  drives the theme from a `.dark` class on <html> (set by an inline script
+  before first paint, and toggled at runtime), so the variant is redefined to
+  follow that class instead.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Ola News design tokens.
+  Accent is an Ola-inspired brand green selected for this dashboard; it does not
+  reproduce any protected brand asset. Contrast pairs were chosen to clear
+  WCAG AA (4.5:1) for body text and 3:1 for large text in both themes.
+*/
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --color-ola-50:  #E8F7F0;
+  --color-ola-100: #C6ECDA;
+  --color-ola-200: #93DBBB;
+  --color-ola-300: #5CC79A;
+  --color-ola-400: #2DB57D;
+  --color-ola-500: #0BA860;
+  --color-ola-600: #087A45;
+  --color-ola-700: #0B3D2C;
+  --color-ola-800: #072A1E;
+  --color-ola-900: #041A13;
+
+  --color-charcoal-50:  #F7F9F8;
+  --color-charcoal-100: #EEF1F0;
+  --color-charcoal-200: #E3E7EA;
+  --color-charcoal-300: #C9D0D4;
+  --color-charcoal-400: #9AA5A0;
+  --color-charcoal-500: #6B7280;
+  --color-charcoal-600: #4B5563;
+  --color-charcoal-700: #3F464E;
+  --color-charcoal-800: #26312B;
+  --color-charcoal-900: #1A1D21;
+  --color-charcoal-950: #0F1512;
+
+  --color-positive: #0F9D58;
+  --color-neutralTone: #6B7280;
+  --color-negative: #D93025;
+  --color-riskLow: #0F9D58;
+  --color-riskMedium: #E8A33D;
+  --color-riskHigh: #EE6C1F;
+  --color-riskCritical: #D93025;
+}
+
+/* --- Semantic surface tokens, swapped per theme -------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #F7F9F8;
+  --bg-elevated: #FFFFFF;
+  --bg-subtle: #EEF1F0;
+  --bg-inset: #E8F7F0;
+  --fg: #1A1D21;
+  --fg-muted: #4B5563;
+  --fg-subtle: #6B7280;
+  --border: #E3E7EA;
+  --border-strong: #C9D0D4;
+  --accent: #0BA860;
+  --accent-strong: #087A45;
+  --accent-contrast: #FFFFFF;
+  --ring: #0BA860;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --bg: #0F1512;
+  --bg-elevated: #161D19;
+  --bg-subtle: #1B231E;
+  --bg-inset: #10251B;
+  --fg: #F2F5F3;
+  --fg-muted: #C4CDC8;
+  --fg-subtle: #9AA5A0;
+  --border: #26312B;
+  --border-strong: #35443C;
+  --accent: #18C878;
+  --accent-strong: #2DB57D;
+  --accent-contrast: #04150D;
+  --ring: #18C878;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Visible, consistent focus ring for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: var(--color-ola-200);
+    color: var(--color-ola-900);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .surface {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-card);
+  }
+  .text-muted { color: var(--fg-muted); }
+  .text-subtle { color: var(--fg-subtle); }
+
+  /* Thin scrollbars inside panels so dense tables stay readable. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  .scroll-thin::-webkit-scrollbar-track { background: transparent; }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--bg-subtle) 25%,
+      var(--border) 37%,
+      var(--bg-subtle) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
 }
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-in { animation: fade-in-up 0.18s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Recharts inherits the themed foreground rather than its own defaults. */
+.recharts-cartesian-axis-tick text { fill: var(--fg-subtle); font-size: 11px; }
+.recharts-legend-item-text { color: var(--fg-muted) !important; font-size: 12px; }
+.recharts-cartesian-grid line { stroke: var(--border); }
+.recharts-tooltip-wrapper { outline: none; }

@@ -1,0 +1,448 @@
+// Ola News — executive news-intelligence dashboard
+// Data model. Default dev provider is SQLite for zero-config local setup.
+// Run `npm run db:use-postgres` to switch the datasource to PostgreSQL.
+//
+// NOTE: SQLite does not support native enums or the Json scalar, so enum-like
+// columns are stored as String (constants live in src/lib/constants.ts) and
+// structured payloads are stored as JSON-encoded String. This keeps the schema
+// portable between SQLite and PostgreSQL without code changes.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// A tracked organisation. `group` buckets it into one of the three Ola company
+/// groups (ani | olaelectric | krutrim) or `market` for competitors/partners.
+model Company {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  legalName   String?
+  group       String
+  relation    String   @default("SELF") // SELF | COMPETITOR | PARTNER | INDUSTRY
+  ticker      String?
+  country     String   @default("IN")
+  description String?
+  aliases     String   @default("[]") // JSON string[]
+  colorHex    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  brands     Brand[]
+  executives Executive[]
+  products   Product[]
+  keywords   Keyword[]
+
+  @@index([group])
+  @@index([relation])
+}
+
+model Brand {
+  id        String  @id @default(cuid())
+  companyId String
+  name      String
+  aliases   String  @default("[]")
+  active    Boolean @default(true)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+}
+
+model Executive {
+  id        String  @id @default(cuid())
+  companyId String
+  name      String
+  role      String?
+  aliases   String  @default("[]")
+  active    Boolean @default(true)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+}
+
+model Product {
+  id        String  @id @default(cuid())
+  companyId String
+  name      String
+  kind      String? // VEHICLE | APP | MODEL | PLATFORM | SERVICE
+  aliases   String  @default("[]")
+  active    Boolean @default(true)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+}
+
+/// Free-form tracking terms. type = TRACK boosts relevance, EXCLUDE suppresses.
+model Keyword {
+  id        String   @id @default(cuid())
+  term      String
+  type      String   @default("TRACK") // TRACK | EXCLUDE
+  companyId String?
+  weight    Float    @default(1)
+  active    Boolean  @default(true)
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@unique([term, type])
+  @@index([type])
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  label       String
+  description String?
+  colorHex    String  @default("#6b7280")
+  keywords    String  @default("[]") // JSON string[] used by the classifier
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+}
+
+/// An ingestion source. `mode` records whether it is really live.
+model Source {
+  id                  String    @id @default(cuid())
+  key                 String    @unique
+  name                String
+  homepage            String?
+  endpoint            String? // feed URL / API base
+  adapter             String    @default("rss") // rss | gdelt | newsapi | newsdata | gnews | html | demo
+  sourceType          String    @default("NEWS") // NEWS | BUSINESS | AUTO_EV | AI_TECH | RESEARCH | COMPANY | REGULATOR | EXCHANGE | COURT | GOVERNMENT | AGGREGATOR
+  group               String? // grouping label for the sources page
+  country             String    @default("IN")
+  language            String    @default("en")
+  credibility         Int       @default(70) // 0-100, feeds source-credibility scoring
+  mode                String    @default("LIVE") // LIVE | DEMO | DISABLED | AWAITING_CREDENTIALS
+  enabled             Boolean   @default(true)
+  requiresCredential  Boolean   @default(false)
+  credentialEnvVar    String?
+  queryTemplate       String? // for query-driven adapters, {{q}} is substituted
+  rateLimitMs         Int       @default(1000)
+  timeoutMs           Int       @default(15000)
+  maxItems            Int       @default(40)
+  isRegulatory        Boolean   @default(false)
+  authority           String? // SEBI | MoRTH | BSE | NSE | MCA | PIB | COURT | ...
+  termsUrl            String?
+  complianceNote      String?
+  lastCheckedAt       DateTime?
+  lastSuccessAt       DateTime?
+  lastErrorAt         DateTime?
+  lastError           String?
+  consecutiveFailures Int       @default(0)
+  sortOrder           Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  articles       Article[]
+  failures       SourceFailure[]
+  regulatoryDocs RegulatoryDocument[]
+
+  @@index([mode])
+  @@index([enabled])
+  @@index([isRegulatory])
+}
+
+/// One ingested item. We store headline + short source-provided description +
+/// metadata + link only. Full article bodies are never copied.
+model Article {
+  id               String   @id @default(cuid())
+  sourceId         String
+  externalId       String?
+  title            String
+  description      String? // verbatim, source-provided (RSS <description>)
+  url              String
+  canonicalUrl     String
+  urlHash          String   @unique
+  contentHash      String // normalised-title hash, used for exact dedupe
+  simhash          String // 64-bit fingerprint (hex) for near-duplicate detection
+  imageUrl         String?
+  author           String?
+  publisher        String
+  publishedAt      DateTime
+  fetchedAt        DateTime @default(now())
+  language         String   @default("en")
+  country          String   @default("IN")
+  isDemo           Boolean  @default(false)
+  processingStatus String   @default("PENDING") // PENDING | PROCESSED | FAILED | SUPPRESSED
+  processingError  String?
+  duplicateOfId    String?
+  clusterId        String?
+  refreshJobId     String?
+
+  source        Source              @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  cluster       StoryCluster?       @relation(fields: [clusterId], references: [id], onDelete: SetNull)
+  analysis      Analysis?
+  sentiment     SentimentResult?
+  risk          RiskAssessment?
+  entities      ArticleEntity[]
+  bookmarks     Bookmark[]
+  important     ImportantStory[]
+  alertEvents   AlertEvent[]
+  regulatoryDoc RegulatoryDocument?
+  exports       ExportRecord[]
+
+  @@index([publishedAt])
+  @@index([sourceId])
+  @@index([clusterId])
+  @@index([isDemo])
+  @@index([contentHash])
+  @@index([processingStatus])
+}
+
+/// Derived, machine-generated fields. Kept strictly separate from the
+/// publisher-provided title/description above.
+model Analysis {
+  id                String   @id @default(cuid())
+  articleId         String   @unique
+  aiSummary         String
+  whyItMatters      String
+  categoryKey       String   @default("corporate")
+  contentType       String   @default("REPORTING") // REPORTING | OPINION | ANALYSIS | PRESS_RELEASE
+  relevance         Int      @default(0) // 0-100
+  confidence        Int      @default(0) // 0-100
+  verification      String   @default("UNVERIFIED") // UNVERIFIED | SINGLE_SOURCE | CORROBORATED | OFFICIAL
+  corroboration     Int      @default(1) // distinct credible publishers in cluster
+  importanceScore   Int      @default(0) // 0-100 automatic importance
+  primaryCompanyKey String?
+  companyKeys       String   @default("[]") // JSON string[]
+  topics            String   @default("[]") // JSON string[]
+  engine            String   @default("heuristic-v1") // heuristic-v1 | llm:<model>
+  createdAt         DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([categoryKey])
+  @@index([relevance])
+  @@index([importanceScore])
+}
+
+model SentimentResult {
+  id         String  @id @default(cuid())
+  articleId  String  @unique
+  label      String  @default("NEUTRAL") // POSITIVE | NEUTRAL | NEGATIVE
+  score      Float   @default(0) // -1..1
+  magnitude  Float   @default(0) // 0..1 intensity
+  confidence Int     @default(0) // 0-100
+  rationale  String?
+  engine     String  @default("heuristic-v1")
+  article    Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([label])
+}
+
+model RiskAssessment {
+  id         String  @id @default(cuid())
+  articleId  String  @unique
+  level      String  @default("LOW") // NONE | LOW | MEDIUM | HIGH | CRITICAL
+  score      Int     @default(0) // 0-100
+  confidence Int     @default(0)
+  drivers    String  @default("[]") // JSON string[] of matched risk drivers
+  dimensions String  @default("{}") // JSON {reputation,financial,operational,legal,regulatory}
+  engine     String  @default("heuristic-v1")
+  article    Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([level])
+}
+
+model ArticleEntity {
+  id         String  @id @default(cuid())
+  articleId  String
+  type       String // COMPANY | PERSON | PRODUCT | LOCATION | REGULATOR | BRAND
+  value      String
+  refKey     String?
+  mentions   Int     @default(1)
+  confidence Int     @default(60)
+  article    Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, type, value])
+  @@index([type, value])
+}
+
+/// A group of near-duplicate / syndicated articles telling one story.
+model StoryCluster {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  summary         String?
+  simhash         String
+  articleCount    Int       @default(1)
+  publisherCount  Int       @default(1)
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  topCompanyKey   String?
+  categoryKey     String?
+  sentimentLabel  String    @default("NEUTRAL")
+  riskLevel       String    @default("LOW")
+  importanceScore Int       @default(0)
+  articles        Article[]
+
+  @@index([lastSeenAt])
+  @@index([importanceScore])
+}
+
+model RegulatoryDocument {
+  id                String    @id @default(cuid())
+  articleId         String?   @unique
+  sourceId          String
+  authority         String
+  companyKeys       String    @default("[]")
+  docType           String    @default("NOTICE") // NOTICE|CIRCULAR|ORDER|INVESTIGATION|PENALTY|RECALL|COMPLIANCE|FILING|COURT|POLICY|DEADLINE
+  title             String
+  summary           String
+  whyItMatters      String?
+  issueDate         DateTime
+  effectiveDate     DateTime?
+  responseDeadline  DateTime?
+  severity          String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status            String    @default("OPEN") // OPEN | IN_PROGRESS | RESPONDED | CLOSED | MONITORING
+  documentUrl       String
+  isPrimaryDocument Boolean   @default(true) // true = official document, false = secondary reporting
+  isDemo            Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+
+  source  Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([authority])
+  @@index([issueDate])
+  @@index([severity])
+}
+
+model Alert {
+  id              String       @id @default(cuid())
+  name            String
+  description     String?
+  enabled         Boolean      @default(true)
+  criteria        String       @default("{}") // JSON AlertCriteria
+  channels        String       @default("[\"inapp\"]") // inapp | email | slack (email/slack are stubs)
+  throttleMins    Int          @default(30)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  events          AlertEvent[]
+}
+
+model AlertEvent {
+  id        String    @id @default(cuid())
+  alertId   String
+  articleId String?
+  title     String
+  message   String
+  severity  String    @default("INFO") // INFO | WARNING | CRITICAL
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  alert   Alert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([readAt])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  articleId String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+/// Curated shortlist used to build briefings and PNG cards.
+model ImportantStory {
+  id        String   @id @default(cuid())
+  articleId String   @unique
+  manual    Boolean  @default(true)
+  position  Int      @default(0)
+  note      String?
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([position])
+}
+
+model SavedView {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  query     String   @default("{}")
+  createdAt DateTime @default(now())
+}
+
+model Briefing {
+  id         String         @id @default(cuid())
+  title      String
+  type       String         @default("DAILY") // DAILY | WEEKLY | REGULATORY | RISK | CUSTOM | SINGLE
+  template   String         @default("standard")
+  theme      String         @default("ola-light")
+  articleIds String         @default("[]")
+  options    String         @default("{}")
+  slideCount Int            @default(0)
+  createdAt  DateTime       @default(now())
+  exports    ExportRecord[]
+}
+
+model ExportRecord {
+  id         String   @id @default(cuid())
+  kind       String // PNG | PPTX
+  filename   String
+  preset     String?
+  articleId  String?
+  briefingId String?
+  sizeBytes  Int      @default(0)
+  params     String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  article  Article?  @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  briefing Briefing? @relation(fields: [briefingId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+model RefreshJob {
+  id                String          @id @default(cuid())
+  status            String          @default("RUNNING") // RUNNING | COMPLETED | COMPLETED_WITH_ERRORS | FAILED | CANCELLED
+  trigger           String          @default("manual") // manual | auto | cron
+  startedAt         DateTime        @default(now())
+  finishedAt        DateTime?
+  sourcesTotal      Int             @default(0)
+  sourcesCompleted  Int             @default(0)
+  sourcesOk         Int             @default(0)
+  sourcesFailed     Int             @default(0)
+  itemsFetched      Int             @default(0)
+  itemsNew          Int             @default(0)
+  duplicatesRemoved Int             @default(0)
+  alertsRaised      Int             @default(0)
+  progress          String          @default("[]") // JSON SourceProgress[]
+  error             String?
+  failures          SourceFailure[]
+
+  @@index([startedAt])
+  @@index([status])
+}
+
+model SourceFailure {
+  id           String   @id @default(cuid())
+  sourceId     String
+  refreshJobId String?
+  stage        String   @default("fetch") // fetch | parse | store
+  message      String
+  statusCode   Int?
+  attempts     Int      @default(1)
+  occurredAt   DateTime @default(now())
+
+  source     Source      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  refreshJob RefreshJob? @relation(fields: [refreshJobId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+}
+
+/// Key/value application + user settings (branding, timezone, refresh interval…).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

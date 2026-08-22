@@ -4,23 +4,67 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "db:reset": "prisma migrate reset --force",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:use-postgres": "node scripts/set-db-provider.mjs postgresql",
+    "db:use-sqlite": "node scripts/set-db-provider.mjs sqlite",
+    "setup": "prisma migrate deploy && prisma generate && tsx prisma/seed.ts",
+    "demo:off": "tsx scripts/purge-demo-data.ts",
+    "demo:disable": "tsx scripts/purge-demo-data.ts --keep",
+    "db:backfill-regulatory": "tsx scripts/backfill-regulatory.ts",
+    "db:reanalyse": "tsx scripts/reanalyse.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.7",
+    "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "clsx": "^2.1.1",
+    "fast-xml-parser": "^5.11.0",
+    "lucide-react": "^1.33.0",
     "next": "16.3.2",
+    "pptxgenjs": "^4.0.1",
+    "prisma": "^7.9.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.0",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.12",
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  },
+  "allowScripts": {
+    "prisma@7.9.1": true,
+    "@prisma/engines@7.9.1": true,
+    "unrs-resolver@1.12.2": true,
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.3": true,
+    "better-sqlite3@12.11.1": true
   }
 }
