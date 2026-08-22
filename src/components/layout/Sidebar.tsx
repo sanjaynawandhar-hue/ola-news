@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Newspaper, Landmark, BarChart3, BellRing, Presentation, Radio, Settings2, Bookmark,
+  LayoutDashboard, Newspaper, Landmark, BarChart3, BellRing, Presentation, Radio, Settings2,
+  Bookmark, Info,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +13,7 @@ const NAV = [
   { href: '/feed', label: 'Live news feed', icon: Newspaper },
   { href: '/regulatory', label: 'Regulatory tracker', icon: Landmark },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/about', label: 'About the companies', icon: Info },
   { href: '/briefing', label: 'Briefings & exports', icon: Presentation },
   { href: '/alerts', label: 'Alerts', icon: BellRing },
   { href: '/saved', label: 'Bookmarks & shortlist', icon: Bookmark },

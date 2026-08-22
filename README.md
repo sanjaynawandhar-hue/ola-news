@@ -48,6 +48,7 @@ PowerPoint briefings.
 | `/feed` Live news feed | Card and table views, full-text search, 12 filter dimensions, sorting, bulk selection, bookmarks, saved views, PNG export |
 | `/regulatory` Regulatory tracker | Notices, circulars, orders, investigations, penalties, filings, court matters and policy, with issue/effective/deadline dates and severity |
 | `/analytics` | Deeper trend, category and comparison analysis per company group |
+| `/about` About the companies | Founders, leadership, offices, factories, scale and culture for each tracked company, with a source and verification state on every entry |
 | `/briefing` Briefings & exports | Reorder the shortlist, choose slides and theme, download a real `.pptx`; export history |
 | `/alerts` | Create and manage alert rules; see what fired |
 | `/saved` | Bookmarks and the briefing shortlist |
@@ -58,6 +59,16 @@ PowerPoint briefings.
 `DEMO DATA` badge everywhere including PNG cards and PPTX slides, and are gated at three
 levels: the connector's mode, its adapter, and the `demoDataEnabled` setting. A source
 backed by the sample dataset cannot be re-labelled `LIVE` through the API.
+
+**Company details are entered, not collected.** The `/about` page is the one place that is
+not fed by a live source. The seed carries only long-standing, widely documented facts —
+founding years, founders, headquarters city, listing status — and every one of them lands
+**unverified with no source**. Headcount, street addresses, plant capacities and wider
+leadership rosters are deliberately left blank rather than guessed: a wrong figure on an
+executive briefing is worse than a visible gap. Fill them in with a source URL and mark
+the entry verified; until then the UI shows a *needs verification* badge and names the
+categories that are still empty. Tests enforce this — the seed fails CI if it ever gains
+a headcount, a street address or a capacity figure.
 
 **Every number is traceable.** The overview's KPI tiles and company tabs are links: click
 *Total stories* and the feed opens filtered to exactly those stories, carrying the same

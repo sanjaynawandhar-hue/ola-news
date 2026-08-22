@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../src/lib/db';
 import { COMPANY_SEEDS, KEYWORD_SEEDS } from './seed-data/companies';
 import { SOURCE_SEEDS } from './seed-data/sources';
+import { EXECUTIVE_SEEDS, FACT_SEEDS, PROFILE_SEEDS } from './seed-data/profiles';
 import { DEFAULT_CATEGORIES } from '../src/lib/intelligence/categories';
 import { DEMO_ARTICLES, DEMO_REGULATORY, demoPublishedAt } from '../src/lib/ingest/demo-data';
 import { loadTrackingConfig, invalidateTrackingConfig } from '../src/lib/intelligence/config';
@@ -70,6 +71,67 @@ async function main() {
     }
   }
   console.log(`  companies: ${COMPANY_SEEDS.length}`);
+
+  // ---- Company profiles, facts and founders -------------------------------
+  // Everything here lands unverified with no source: a fact counts as verified
+  // only once a human has checked it against a primary source and recorded it.
+  for (const profile of PROFILE_SEEDS) {
+    const company = await prisma.company.findUnique({ where: { key: profile.companyKey } });
+    if (!company) continue;
+    const data = {
+      about: profile.about,
+      foundedYear: profile.foundedYear,
+      headquarters: profile.headquarters,
+      website: profile.website,
+      listingStatus: profile.listingStatus,
+    };
+    await prisma.companyProfile.upsert({
+      where: { companyId: company.id },
+      create: { companyId: company.id, ...data },
+      // Never overwrite details an administrator has verified and sourced.
+      update: {},
+    });
+  }
+  console.log(`  company profiles: ${PROFILE_SEEDS.length}`);
+
+  for (const fact of FACT_SEEDS) {
+    const company = await prisma.company.findUnique({ where: { key: fact.companyKey } });
+    if (!company) continue;
+    const existing = await prisma.companyFact.findFirst({
+      where: { companyId: company.id, label: fact.label, category: fact.category },
+    });
+    if (existing) continue;
+    await prisma.companyFact.create({
+      data: {
+        companyId: company.id,
+        category: fact.category,
+        label: fact.label,
+        value: fact.value,
+        location: fact.location,
+        detail: fact.detail,
+        sortOrder: fact.sortOrder,
+      },
+    });
+  }
+  console.log(`  company facts: ${FACT_SEEDS.length}`);
+
+  for (const executive of EXECUTIVE_SEEDS) {
+    const company = await prisma.company.findUnique({ where: { key: executive.companyKey } });
+    if (!company) continue;
+    await prisma.executive.upsert({
+      where: { companyId_name: { companyId: company.id, name: executive.name } },
+      create: {
+        companyId: company.id,
+        name: executive.name,
+        role: executive.role,
+        kind: executive.kind,
+        since: executive.since,
+        sortOrder: executive.sortOrder,
+      },
+      update: { kind: executive.kind, since: executive.since, sortOrder: executive.sortOrder },
+    });
+  }
+  console.log(`  founders: ${EXECUTIVE_SEEDS.length}`);
 
   // ---- Keywords -----------------------------------------------------------
   for (const keyword of KEYWORD_SEEDS) {

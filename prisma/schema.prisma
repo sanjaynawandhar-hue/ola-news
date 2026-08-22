@@ -35,10 +35,12 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  brands     Brand[]
-  executives Executive[]
-  products   Product[]
-  keywords   Keyword[]
+  brands         Brand[]
+  executives     Executive[]
+  products       Product[]
+  keywords       Keyword[]
+  companyProfile CompanyProfile?
+  companyFacts   CompanyFact[]
 
   @@index([group])
   @@index([relation])
@@ -56,13 +58,22 @@ model Brand {
 }
 
 model Executive {
-  id        String  @id @default(cuid())
-  companyId String
-  name      String
-  role      String?
-  aliases   String  @default("[]")
-  active    Boolean @default(true)
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id         String  @id @default(cuid())
+  companyId  String
+  name       String
+  role       String?
+  /// FOUNDER | BOARD | EXECUTIVE — drives how the profile page groups them.
+  kind       String  @default("EXECUTIVE")
+  since      String?
+  bio        String?
+  profileUrl String?
+  /// Where the role was confirmed. Empty means unverified.
+  sourceUrl  String?
+  verified   Boolean @default(false)
+  sortOrder  Int     @default(0)
+  aliases    String  @default("[]")
+  active     Boolean @default(true)
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
 }
@@ -445,4 +456,51 @@ model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+/// Narrative and structural facts about a tracked company: what it is, who
+/// founded it, where it operates from. Kept separate from Company (which is
+/// the *matching* configuration) because this is editorial content that needs
+/// a source and a review date, not tracking keywords.
+model CompanyProfile {
+  id            String    @id @default(cuid())
+  companyId     String    @unique
+  about         String?
+  foundedYear   Int?
+  headquarters  String?
+  website       String?
+  /// A range, never a fabricated precise number.
+  employeeRange String?
+  listingStatus String? // LISTED | PRIVATE | SUBSIDIARY
+  /// Where these details came from. Empty means unverified.
+  sourceUrl     String?
+  /// When a human last confirmed this against the source.
+  verifiedAt    DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+/// One checkable fact about a company's scale or operations — a factory, an
+/// office, a headline metric, a stated cultural principle. Each carries its
+/// own source so a reader can confirm it rather than trust the dashboard.
+model CompanyFact {
+  id        String   @id @default(cuid())
+  companyId String
+  /// FACILITY | OFFICE | SCALE | CULTURE | MILESTONE
+  category  String
+  label     String
+  value     String?
+  location  String?
+  detail    String?
+  sourceUrl String?
+  /// When false, the UI marks it as needing confirmation.
+  verified  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, category])
 }
