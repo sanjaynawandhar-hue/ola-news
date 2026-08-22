@@ -21,6 +21,16 @@ const log = createLogger('pipeline');
 /** How far back an ingested item may be published. */
 const MAX_ITEM_AGE_DAYS = 45;
 
+/**
+ * Wall-clock budget for one refresh run.
+ *
+ * A serverless invocation is killed hard at its `maxDuration`, which leaves the
+ * job pinned at RUNNING with no explanation. Stopping short of that lets the
+ * run finish tidily and report exactly which sources it did not reach, so the
+ * next refresh can pick them up.
+ */
+const RUN_BUDGET_MS = Number(process.env.OLA_NEWS_RUN_BUDGET_MS ?? 240_000);
+
 export interface RunRefreshOptions {
   trigger?: 'manual' | 'auto' | 'cron';
   sourceKeys?: string[];
@@ -127,8 +137,24 @@ async function executeRefresh(
 
   const concurrency = Math.max(1, serverEnv.maxConcurrentSources);
   const batches = chunk(sources, concurrency);
+  const deadline = Date.now() + RUN_BUDGET_MS;
+  let ranOutOfTime = false;
 
   for (const batch of batches) {
+    if (Date.now() >= deadline) {
+      // Mark everything still pending so the UI explains the gap rather than
+      // showing sources stuck on "pending" forever.
+      ranOutOfTime = true;
+      for (const source of batch) {
+        const entry = progress.find((p) => p.sourceKey === source.key);
+        if (entry && entry.status === 'pending') {
+          entry.status = 'skipped';
+          entry.message = 'Not reached within this run — refresh again to collect it.';
+        }
+      }
+      continue;
+    }
+
     await Promise.all(
       batch.map(async (source) => {
         const entry = progress.find((p) => p.sourceKey === source.key)!;
@@ -196,15 +222,28 @@ async function executeRefresh(
     );
   }
 
+  const unreached = progress.filter((p) => p.status === 'pending').length;
+
   await prisma.refreshJob.update({
     where: { id: jobId },
     data: {
-      status: sourcesFailed === 0 ? 'COMPLETED' : sourcesOk > 0 ? 'COMPLETED_WITH_ERRORS' : 'FAILED',
+      status:
+        sourcesOk === 0 && sourcesFailed > 0
+          ? 'FAILED'
+          : sourcesFailed > 0 || ranOutOfTime
+            ? 'COMPLETED_WITH_ERRORS'
+            : 'COMPLETED',
       finishedAt: new Date(),
       sourcesCompleted, sourcesOk, sourcesFailed,
       itemsFetched, itemsNew, duplicatesRemoved, alertsRaised,
       progress: stringifyJson(progress),
-      error: sourcesOk === 0 && sourcesFailed > 0 ? 'Every source failed. Check the Sources page for details.' : null,
+      error:
+        sourcesOk === 0 && sourcesFailed > 0
+          ? 'Every source failed. Check the Sources page for details.'
+          : ranOutOfTime
+            ? `Time budget reached after ${sourcesCompleted} source(s). ` +
+              `${unreached} source(s) were not collected — run another refresh to finish.`
+            : null,
     },
   });
 
@@ -299,12 +338,17 @@ async function ingestSource(
 
   const config = await loadTrackingConfig();
   const settings = await getSettings();
+  const clusterCache = await loadClusterCache();
   const isOfficial = ['REGULATOR', 'EXCHANGE', 'GOVERNMENT', 'COURT', 'COMPANY'].includes(source.sourceType);
 
   let stored = 0;
   let suppressed = 0;
   let regulatoryStored = 0;
   const storedArticleIds: string[] = [];
+  // Cluster aggregates used to be recomputed after every single article, which
+  // is two extra round-trips per item. Over a network database that dominated
+  // the run time, so the touched clusters are collected and refreshed once.
+  const touchedClusters = new Set<string>();
 
   for (const item of dbDedupe.unique) {
     try {
@@ -330,7 +374,9 @@ async function ingestSource(
       const suppressedItem = analysis.excluded || analysis.relevance < settings.relevanceThreshold;
       if (suppressedItem) suppressed += 1;
 
-      const clusterId = await assignCluster(item, analysis.categoryKey, analysis.primaryCompanyKey, analysis);
+      const clusterId = await assignCluster(
+        item, analysis.categoryKey, analysis.primaryCompanyKey, analysis, clusterCache,
+      );
 
       const rows = toAnalysisRows('pending', analysis);
       const article = await prisma.article.create({
@@ -364,7 +410,7 @@ async function ingestSource(
       });
       stored += 1;
       if (!suppressedItem) storedArticleIds.push(article.id);
-      await refreshClusterStats(clusterId);
+      touchedClusters.add(clusterId);
 
       // Items from a regulator, exchange, court or ministry are also recorded
       // as regulatory documents. This happens regardless of the feed relevance
@@ -389,6 +435,10 @@ async function ingestSource(
         },
       });
     }
+  }
+
+  for (const clusterId of touchedClusters) {
+    await refreshClusterStats(clusterId);
   }
 
   const alerts = storedArticleIds.length ? await evaluateAlerts(storedArticleIds) : 0;
@@ -472,19 +522,32 @@ async function countCorroboration(item: NormalizedItem): Promise<number> {
   return publishers.size;
 }
 
+interface ClusterCache {
+  entries: Array<{ id: string; title: string; simhash: string; lastSeenAt: Date }>;
+}
+
+/** Loads the recent clusters once so matching does not re-query per article. */
+async function loadClusterCache(): Promise<ClusterCache> {
+  const since = new Date(Date.now() - CLUSTER_WINDOW_HOURS * 3600000 * 2);
+  return {
+    entries: await prisma.storyCluster.findMany({
+      where: { lastSeenAt: { gte: since } },
+      select: { id: true, title: true, simhash: true, lastSeenAt: true },
+      orderBy: { lastSeenAt: 'desc' },
+      take: 400,
+    }),
+  };
+}
+
 async function assignCluster(
   item: NormalizedItem,
   categoryKey: string,
   companyKey: string | null,
   analysis: { sentiment: { label: string }; risk: { level: string }; importanceScore: number },
+  cache: ClusterCache,
 ): Promise<string> {
   const since = new Date(item.publishedAt.getTime() - CLUSTER_WINDOW_HOURS * 3600000);
-  const candidates = await prisma.storyCluster.findMany({
-    where: { lastSeenAt: { gte: since } },
-    select: { id: true, title: true, simhash: true, lastSeenAt: true },
-    orderBy: { lastSeenAt: 'desc' },
-    take: 400,
-  });
+  const candidates = cache.entries.filter((entry) => entry.lastSeenAt >= since);
 
   const match = matchCluster(
     { id: '', title: item.title, simhash: item.simhash, publishedAt: item.publishedAt, publisher: item.publisher },
@@ -512,6 +575,13 @@ async function assignCluster(
       riskLevel: analysis.risk.level,
       importanceScore: analysis.importanceScore,
     },
+  });
+  // Keep the cache warm so later articles in this batch can join it.
+  cache.entries.unshift({
+    id: created.id,
+    title: created.title,
+    simhash: created.simhash,
+    lastSeenAt: created.lastSeenAt,
   });
   return created.id;
 }
