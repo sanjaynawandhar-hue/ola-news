@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card, CardBody, CardHeader, EmptyState, ErrorState, Badge, Skeleton, Tabs, InfoTip } from '@/components/ui';
 import { KpiCard } from './KpiCard';
+import { MarketPanel } from './MarketPanel';
 import { TopList } from './TopList';
 import {
   CategoryChart, CompanyTrendChart, ComparisonChart, SentimentDonut, SentimentTrendChart, VolumeTrendChart,
@@ -150,6 +151,9 @@ export function OverviewClient() {
           </p>
         </div>
       ) : null}
+
+      {/* ------------------------------------------------ Market context -- */}
+      <MarketPanel />
 
       {/* -------------------------------------------------------- Charts -- */}
       <section className="grid gap-4 xl:grid-cols-3">

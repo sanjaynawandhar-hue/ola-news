@@ -44,7 +44,7 @@ PowerPoint briefings.
 
 | Page | Purpose |
 | --- | --- |
-| `/` Executive overview | KPIs, volume/sentiment trends, company comparison, top publishers, trending topics, emerging issues, geography, source health |
+| `/` Executive overview | KPIs, **market context** (Sensex, Nifty 50, Ola Electric with sparklines and a rebased relative-performance chart), volume/sentiment trends, company comparison, top publishers, trending topics, emerging issues, geography, source health |
 | `/feed` Live news feed | Card and table views, full-text search, 12 filter dimensions, sorting, bulk selection, bookmarks, saved views, PNG export |
 | `/regulatory` Regulatory tracker | Notices, circulars, orders, investigations, penalties, filings, court matters and policy, with issue/effective/deadline dates and severity |
 | `/analytics` | Deeper trend, category and comparison analysis per company group |
@@ -412,6 +412,7 @@ placeholder results.
 | **Corroboration** | Distinct publishers carrying the same story drive the verification status: Official → Corroborated → Single source → Unverified. |
 | **Importance** | Nine explicitly weighted factors — relevance, recency (48h half-life), source credibility, corroboration, regulatory significance, risk, sentiment intensity, coverage spike, business impact. Each contribution is inspectable. |
 | **Trends** | Volume-spike detection against a rolling baseline; emerging topics by lift against the prior period. |
+| **Market context** | Sensex, Nifty 50 and the Ola Electric share price, each with a sparkline, plus a chart rebasing all three to 100 so a ₹38 share and a 77,000-point index compare on one axis. The panel states plainly whether the company out- or under-performed the benchmarks, which separates a company-specific move from a market-wide one. Quotes come from Yahoo Finance's chart endpoint — publicly reachable but **not a documented, supported API** — so it is rate limited, cached for five minutes, and a failure is shown as *unavailable* rather than filled with a stale or invented price. Indicative, delayed, and not investment advice. ANI Technologies and Krutrim are private and so are absent rather than shown as empty tiles. |
 | **Regulatory** | Items from a regulator, exchange, court or ministry source are additionally written to the regulatory tracker, with document type and severity inferred from the authority's own wording. This happens regardless of the feed relevance threshold, because a sector-wide circular is a compliance item even when it names no tracked company. |
 
 Summaries are **extractive by default**: the heuristic engine reuses the publisher's own

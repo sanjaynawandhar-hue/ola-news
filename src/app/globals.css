@@ -91,6 +91,12 @@
   }
   html {
     -webkit-text-size-adjust: 100%;
+    /*
+      Set on the root as well as body: with `overflow-x` left `visible` on
+      <html>, the body value does not reliably propagate to the viewport, so a
+      stray horizontal scrollbar survives on narrow screens.
+    */
+    overflow-x: clip;
   }
   body {
     background: var(--bg);
@@ -98,6 +104,14 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /*
+      Absolutely-positioned tooltips near the right edge extend past the
+      viewport and add to the scrollable width, producing a stray horizontal
+      scrollbar on narrow screens. `clip` suppresses that without creating a
+      scroll container, so `position: sticky` on the header and sidebar keeps
+      working — which `hidden` would break.
+    */
+    overflow-x: clip;
   }
   /* Visible, consistent focus ring for keyboard users. */
   :focus-visible {
