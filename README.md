@@ -413,7 +413,7 @@ placeholder results.
 | **Importance** | Nine explicitly weighted factors — relevance, recency (48h half-life), source credibility, corroboration, regulatory significance, risk, sentiment intensity, coverage spike, business impact. Each contribution is inspectable. |
 | **Trends** | Volume-spike detection against a rolling baseline; emerging topics by lift against the prior period. |
 | **Market context** | Sensex, Nifty 50 and the Ola Electric share price, each with a sparkline, plus a chart rebasing all three to 100 so a ₹38 share and a 77,000-point index compare on one axis. The panel states plainly whether the company out- or under-performed the benchmarks, which separates a company-specific move from a market-wide one. Quotes come from Yahoo Finance's chart endpoint — publicly reachable but **not a documented, supported API** — so it is rate limited, cached for five minutes, and a failure is shown as *unavailable* rather than filled with a stale or invented price. Indicative, delayed, and not investment advice. ANI Technologies and Krutrim are private and so are absent rather than shown as empty tiles. |
-| **Regulatory** | Items from a regulator, exchange, court or ministry source are additionally written to the regulatory tracker, with document type and severity inferred from the authority's own wording. This happens regardless of the feed relevance threshold, because a sector-wide circular is a compliance item even when it names no tracked company. |
+| **Regulatory** | Items from a regulator, exchange, court or ministry source are written to the regulatory tracker with document type and severity inferred from the authority's own wording — but only if they actually concern the portfolio. A regulator's feed is dominated by enforcement against unrelated parties (recovery certificates, demat attachments, appeals by named individuals), which is rejected at collection. A document is kept when it **names** a tracked company or executive, or when it is a **general instrument that binds one**: an obligation on listed entities (LODR, disclosure, insider trading, governance) or a rule covering electric vehicles, ride-hailing, consumer protection or data protection. Every rejection records a reason. |
 
 Summaries are **extractive by default**: the heuristic engine reuses the publisher's own
 headline and syndicated description and adds an explicitly derived framing sentence. It
@@ -721,10 +721,15 @@ it. Leave the flag unset for a local install and nothing changes.
   same event in very different words may not cluster; corroboration counts are a floor,
   not a guarantee.
 - **Regulatory documents are only as complete as their sources.** Only SEBI is collected
-  live today. Most SEBI publications are sector-wide and name no tracked company; they
-  are kept (a circular still changes the rules a listed entity operates under), badged
-  **sector-wide**, and can be filtered out with *Only items naming a tracked company*.
-  Broader coverage needs the blocked connectors above.
+  live today, and the overwhelming majority of what SEBI publishes is enforcement against
+  unrelated parties, which is filtered out. The tracker is therefore often empty — that is
+  the honest state, not a failure: it means nothing SEBI published recently touches the
+  tracked companies. Meaningful coverage of MoRTH notifications, exchange filings and
+  court matters needs the blocked connectors above or a licensed feed.
+- **The relevance test is keyword-driven and conservative.** A document naming a tracked
+  entity is always kept. A general instrument is kept only if its wording matches a known
+  obligation category, so an unusually phrased circular could be missed. Run
+  `npm run db:prune-regulatory` (dry run) to see how existing entries are being judged.
 - **Most live coverage arrives via a Google News redirect.** Around 97% of currently
   collected stories link through `news.google.com`, whose article URLs are opaque tokens
   that only resolve in a browser (the redirect is performed by JavaScript). They cannot

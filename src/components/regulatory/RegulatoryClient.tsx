@@ -89,8 +89,8 @@ export function RegulatoryClient() {
         </h1>
         <p className="mt-0.5 max-w-3xl text-xs text-subtle">
           Notices, circulars, orders, investigations, penalties, filings, court matters and policy
-          announcements affecting the tracked companies. Official primary documents are ranked above
-          secondary news reporting.{' '}
+          announcements <strong>affecting ANI Technologies, Ola Electric, Krutrim or their
+          executives</strong>. Official primary documents rank above secondary news reporting.{' '}
           <InfoTip label="Where a regulator publishes a machine-readable feed (for example SEBI), the original document is collected directly. Sources that block automated collection or publish no feed are listed as disabled on the Sources page rather than being scraped." />
         </p>
       </div>
@@ -177,9 +177,10 @@ export function RegulatoryClient() {
                 }}
               />
               <p className="mt-1 text-[10.5px] text-subtle">
-                Regulators publish sector-wide circulars and orders that never name an individual
-                company but still change the rules a listed entity operates under. Those are kept
-                by default and marked as sector-wide.
+                Everything here already concerns the tracked portfolio — enforcement against
+                unrelated parties is filtered out at collection. This narrows further to documents
+                that name a tracked company outright, hiding general obligations that reach it as a
+                listed issuer or sector participant.
               </p>
             </fieldset>
 
@@ -250,8 +251,8 @@ export function RegulatoryClient() {
           ) : items.length === 0 ? (
             <EmptyState
               icon={<FileCheck2 className="h-6 w-6" aria-hidden="true" />}
-              title="No regulatory items match these filters"
-              description="SEBI is collected live. MoRTH, BSE, NSE, MCA, PIB and court sources are disabled by default because they block automated collection or publish no machine-readable feed — see the Sources page."
+              title="Nothing currently affects the tracked companies"
+              description="This tracker only holds documents that name ANI Technologies, Ola Electric, Krutrim or a tracked executive, or that bind them as a listed issuer or sector participant. A regulator's feed is mostly enforcement against unrelated parties — recovery certificates, demat attachments, appeals by named individuals — and that is filtered out rather than listed here. SEBI is collected live; MoRTH, BSE, NSE, MCA, PIB and court sources block automated collection or publish no machine-readable feed, so their coverage is limited."
             />
           ) : (
             items.map((item) => (
@@ -332,11 +333,15 @@ function RegulatoryCard({
         {item.companyKeys.length === 0 ? (
           <Badge
             tone="neutral"
-            title="This document does not name a tracked company. It is kept because it changes the rules the portfolio operates under."
+            title="Does not name a tracked company, but binds it — as a listed issuer, or as a participant in a regulated sector. Documents with no such connection are not stored at all."
           >
-            sector-wide
+            applies by category
           </Badge>
-        ) : null}
+        ) : (
+          <Badge tone="accent" title="This document names a tracked company or executive.">
+            names a tracked company
+          </Badge>
+        )}
         {item.isDemo ? <DemoBadge /> : null}
       </div>
 

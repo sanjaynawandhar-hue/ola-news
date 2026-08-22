@@ -9,6 +9,7 @@ import { analyzeArticle, toAnalysisRows } from '@/lib/intelligence/analyze';
 import {
   inferDocType, inferSeverity, regulatorySummary, regulatoryWhyItMatters,
 } from '@/lib/intelligence/regulatory';
+import { assessRegulatoryRelevance } from '@/lib/intelligence/regulatory-relevance';
 import { buildSearchQueries, loadTrackingConfig } from '@/lib/intelligence/config';
 import { evaluateAlerts } from '@/lib/alerts';
 import { getSettings } from '@/lib/settings';
@@ -483,6 +484,16 @@ async function storeRegulatoryDocument(
     .filter((name): name is string => !!name);
 
   const docType = inferDocType(item.title, item.description);
+
+  // A regulator's feed is mostly enforcement against unrelated parties. Only
+  // documents that name a tracked entity, or that bind it as a listed issuer
+  // or sector participant, belong in the tracker.
+  const relevance = assessRegulatoryRelevance(item.title, item.description, docType, companyNames);
+  if (!relevance.relevant) {
+    log.debug('regulatory item not tracked', { title: item.title.slice(0, 80), reason: relevance.reason });
+    return 0;
+  }
+
   const severity = inferSeverity(docType, analysis.risk.level, companyNames.length > 0);
 
   await prisma.regulatoryDocument.create({

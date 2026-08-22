@@ -29,7 +29,8 @@
     "deploy:seed": "node scripts/sync-db-provider.mjs && prisma generate && tsx prisma/seed.ts",
     "dev:lan": "next dev -H 0.0.0.0",
     "start:lan": "next start -H 0.0.0.0",
-    "share": "node scripts/share-on-lan.mjs"
+    "share": "node scripts/share-on-lan.mjs",
+    "db:prune-regulatory": "tsx scripts/prune-regulatory.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.7",
