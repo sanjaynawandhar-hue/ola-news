@@ -649,8 +649,36 @@ vercel login
      -H "x-admin-token: <your token>"
    ```
 
-   To keep it fresh automatically, add a Vercel Cron job hitting `/api/refresh`
-   with the same header.
+### Keeping it fresh automatically
+
+`vercel.json` registers a daily cron:
+
+```json
+{ "crons": [{ "path": "/api/cron/refresh", "schedule": "30 1 * * *" }] }
+```
+
+That is 01:30 UTC / 07:00 IST, so the overnight news cycle is collected before the
+working day. **Vercel Hobby permits one cron run per day** — a more frequent
+expression is rejected at deploy time with a clear error. On Pro, tighten it to
+something like `0 */6 * * *`.
+
+Vercel Cron can only issue a plain GET and cannot attach the admin token header,
+so `/api/cron/refresh` carries its own guard: it accepts
+`Authorization: Bearer $CRON_SECRET` (which Vercel sends automatically once that
+variable is set) or the admin token for manual triggering, compared in constant
+time. Set it with:
+
+```bash
+vercel env add CRON_SECRET production      # openssl rand -hex 32
+```
+
+Without `CRON_SECRET` the endpoint refuses every request — it is a GET, so the
+read-only guard alone would not protect it, and an open refresh URL would let
+anyone drain the shared per-host source rate limits.
+
+The route also refuses to stack runs: if a refresh is already in flight it
+returns `{ "skipped": true }` rather than starting a second one that would
+compete with the first for the same rate limits.
 
 ### Publishing read-only
 

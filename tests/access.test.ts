@@ -147,3 +147,35 @@ describe('refresh survives on serverless', () => {
     expect(route).toMatch(/after\(run\)/);
   });
 });
+
+describe('scheduled refresh endpoint', () => {
+  /**
+   * Vercel Cron can only issue a plain GET, and a GET passes the read-only
+   * guard — so this route carries its own authorisation. Without it, anyone
+   * who guessed the URL could refresh the dashboard and drain the shared
+   * per-host source rate limits.
+   */
+  it('requires its own secret rather than relying on the read-only guard', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const route = await readFile('src/app/api/cron/refresh/route.ts', 'utf8');
+
+    // The guard must exist and be checked before any work is started.
+    expect(route).toMatch(/CRON_SECRET/);
+    expect(route).toMatch(/timingSafeEqual/);
+    expect(route.indexOf('isAuthorised(request)')).toBeLessThan(route.indexOf('runRefresh('));
+
+    // It must not stack concurrent refreshes.
+    expect(route).toMatch(/status:\s*'RUNNING'/);
+
+    // Same serverless requirement as the manual route.
+    expect(route).toMatch(/after\(run\)/);
+  });
+
+  it('is registered on a schedule', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const config = JSON.parse(await readFile('vercel.json', 'utf8'));
+    expect(config.crons).toHaveLength(1);
+    expect(config.crons[0].path).toBe('/api/cron/refresh');
+    expect(config.crons[0].schedule).toMatch(/^[\d*/, -]+$/);
+  });
+});

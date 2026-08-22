@@ -61,3 +61,6 @@ next-env.d.ts
 # Untracked but not ignored, it would otherwise be swept in by `git add -A`
 # — along with its own .env.
 /ola-news/
+
+# Database dumps — collected article data, not source code.
+/backups/
