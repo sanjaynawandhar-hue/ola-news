@@ -1,4 +1,4 @@
-import { PrismaClient } from '@/generated/prisma/client';
+import { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaPg } from '@prisma/adapter-pg';
 import path from 'node:path';
@@ -25,10 +25,30 @@ function resolveSqliteUrl(url: string): string {
   return `file:${path.resolve(/*turbopackIgnore: true*/ process.cwd(), filePath)}`;
 }
 
+/**
+ * The Prisma schema bakes its provider in at generate time, while the adapter
+ * here is chosen from DATABASE_URL at runtime. If the two disagree Prisma fails
+ * with a message that does not say how to fix it, so the mismatch is checked
+ * first — it happens whenever the schema was switched for a deploy and not
+ * switched back.
+ */
+function assertProviderMatches(expected: 'postgresql' | 'sqlite') {
+  // The generated client records the provider it was built for.
+  const actual = (Prisma as { datamodel?: { provider?: string } }).datamodel?.provider;
+  if (!actual || actual === expected) return;
+  throw new Error(
+    `DATABASE_URL points at ${expected}, but the Prisma client was generated for ` +
+      `${actual}. Run \`npm run db:sync-provider && npm run db:generate\` to realign them ` +
+      `(the provider is switched automatically during a deploy build).`,
+  );
+}
+
 function createAdapter() {
   if (/^postgres(ql)?:\/\//i.test(databaseUrl)) {
+    assertProviderMatches('postgresql');
     return new PrismaPg({ connectionString: databaseUrl });
   }
+  assertProviderMatches('sqlite');
   return new PrismaBetterSqlite3({ url: resolveSqliteUrl(databaseUrl) });
 }
 

@@ -34,7 +34,9 @@ export interface RunRefreshOptions {
  *
  * A failing source is recorded and skipped — it never aborts the run.
  */
-export async function runRefresh(options: RunRefreshOptions = {}): Promise<string> {
+export async function runRefresh(
+  options: RunRefreshOptions = {},
+): Promise<{ jobId: string; run: () => Promise<void> }> {
   const trigger = options.trigger ?? 'manual';
   const settings = await getSettings();
 
@@ -82,20 +84,30 @@ export async function runRefresh(options: RunRefreshOptions = {}): Promise<strin
     },
   });
 
-  // Run in the background; the caller polls /api/refresh/status.
-  void executeRefresh(job.id, runnable, progress, options).catch(async (error) => {
-    log.error('refresh crashed', { jobId: job.id, error: String(error) });
-    await prisma.refreshJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'FAILED',
-        finishedAt: new Date(),
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-    });
-  });
+  // The collection itself is returned as a task rather than started here.
+  //
+  // A plain `void executeRefresh(...)` works on a long-running Node server but
+  // silently hangs on serverless: the platform freezes the function the moment
+  // the response is sent, so the job would sit at RUNNING forever. The caller
+  // hands this task to `after()` (Next.js) which keeps the invocation alive
+  // until it settles.
+  const run = async () => {
+    try {
+      await executeRefresh(job.id, runnable, progress, options);
+    } catch (error) {
+      log.error('refresh crashed', { jobId: job.id, error: String(error) });
+      await prisma.refreshJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+    }
+  };
 
-  return job.id;
+  return { jobId: job.id, run };
 }
 
 async function executeRefresh(

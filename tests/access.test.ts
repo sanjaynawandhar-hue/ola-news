@@ -122,3 +122,28 @@ describe('admin token unlocks writes', () => {
     expect(denyIfReadOnly(request)!.status).toBe(403);
   });
 });
+
+describe('refresh survives on serverless', () => {
+  /** Comments discuss the old pattern, so only executable lines are inspected. */
+  const codeOnly = (source: string) =>
+    source
+      .split('\n')
+      .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+      .join('\n');
+
+  it('hands the collection back instead of starting it in the background', async () => {
+    // A fire-and-forget `void execute()` is silently killed when the platform
+    // freezes the function after the response is sent, leaving the job pinned
+    // at RUNNING forever. This only reproduces on a real deployment, so it is
+    // guarded here rather than being rediscovered in production.
+    const { readFile } = await import('node:fs/promises');
+
+    const pipeline = codeOnly(await readFile('src/lib/ingest/pipeline.ts', 'utf8'));
+    expect(pipeline).not.toMatch(/void\s+executeRefresh\s*\(/);
+    expect(pipeline).toMatch(/return\s*\{\s*jobId:\s*job\.id,\s*run\s*\}/);
+
+    const route = codeOnly(await readFile('src/app/api/refresh/route.ts', 'utf8'));
+    expect(route).toMatch(/import\s*\{\s*after\s*\}\s*from\s*'next\/server'/);
+    expect(route).toMatch(/after\(run\)/);
+  });
+});
