@@ -99,7 +99,18 @@ export async function getLookups() {
   };
 }
 
-function buildWhere(query: FeedQuery): Prisma.ArticleWhereInput {
+/**
+ * @param groupPrimaryKeys Company keys resolved from a `groups` filter. These
+ *   match the story's PRIMARY company only, mirroring how the overview
+ *   attributes each story to exactly one group. An explicit `companies` filter
+ *   stays broader (any mention), which is what a reader ticking a single
+ *   company in the filter panel expects — but a group tab and its "open in the
+ *   feed" link must agree on the count, and attribution is what the tab shows.
+ */
+function buildWhere(
+  query: FeedQuery,
+  groupPrimaryKeys?: string[],
+): Prisma.ArticleWhereInput {
   const where: Prisma.ArticleWhereInput = {
     processingStatus: 'PROCESSED',
   };
@@ -134,7 +145,9 @@ function buildWhere(query: FeedQuery): Prisma.ArticleWhereInput {
     });
   }
 
-  // NOTE: `groups` is resolved to company keys by expandGroups() before this runs.
+  if (groupPrimaryKeys?.length) {
+    and.push({ analysis: { is: { primaryCompanyKey: { in: groupPrimaryKeys } } } });
+  }
 
   if (query.brands?.length) {
     and.push({ entities: { some: { type: 'BRAND', value: { in: query.brands } } } });
@@ -184,25 +197,20 @@ function buildOrderBy(sort: FeedQuery['sort']): Prisma.ArticleOrderByWithRelatio
 }
 
 /** Resolves company-group filters to the underlying company keys. */
-async function expandGroups(query: FeedQuery): Promise<FeedQuery> {
-  if (!query.groups?.length) return query;
+async function resolveGroupKeys(groups?: string[]): Promise<string[] | undefined> {
+  if (!groups?.length) return undefined;
   const companies = await prisma.company.findMany({
-    where: { group: { in: query.groups } },
+    where: { group: { in: groups } },
     select: { key: true },
   });
-  const keys = companies.map((c) => c.key);
-  return {
-    ...query,
-    groups: undefined,
-    companies: [...(query.companies ?? []), ...keys],
-  };
+  return companies.map((c) => c.key);
 }
 
-export async function getFeed(rawQuery: FeedQuery): Promise<Paged<FeedArticle>> {
-  const query = await expandGroups(rawQuery);
+export async function getFeed(query: FeedQuery): Promise<Paged<FeedArticle>> {
+  const groupPrimaryKeys = await resolveGroupKeys(query.groups);
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(100, Math.max(5, query.pageSize ?? 20));
-  const where = buildWhere(query);
+  const where = buildWhere(query, groupPrimaryKeys);
 
   const [total, rows, lookups] = await Promise.all([
     prisma.article.count({ where }),
