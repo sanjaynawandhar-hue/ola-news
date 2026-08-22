@@ -59,6 +59,12 @@ PowerPoint briefings.
 levels: the connector's mode, its adapter, and the `demoDataEnabled` setting. A source
 backed by the sample dataset cannot be re-labelled `LIVE` through the API.
 
+**Every number is traceable.** The overview's KPI tiles and company tabs are links: click
+*Total stories* and the feed opens filtered to exactly those stories, carrying the same
+company-group and date scope. Filters round-trip through the URL, so any view can be
+bookmarked or shared. Date-scoped links use a relative window (`withinDays=30`) rather
+than a baked-in timestamp, so a shared link still means "the last 30 days" tomorrow.
+
 **A note that runs through the whole product:** summaries, sentiment, risk levels,
 relevance and importance are **automated estimates with stated confidence**, not
 verified facts. The publisher's original headline and their own syndicated

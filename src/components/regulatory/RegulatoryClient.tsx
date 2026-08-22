@@ -65,11 +65,14 @@ export function RegulatoryClient() {
   // on their own without a reload.
   const now = useNow();
   const openItems = items.filter((i) => i.status === 'OPEN' || i.status === 'IN_PROGRESS');
-  const dueSoon = items.filter(
+  // `now` is 0 until the client clock is known (see useNow) — comparing
+  // against that would report every deadline as long overdue on first paint.
+  const clockReady = now > 0;
+  const dueSoon = !clockReady ? [] : items.filter(
     (i) => i.responseDeadline && new Date(i.responseDeadline).getTime() - now < 14 * 86400000 &&
       new Date(i.responseDeadline).getTime() > now,
   );
-  const overdue = items.filter(
+  const overdue = !clockReady ? [] : items.filter(
     (i) => i.responseDeadline && new Date(i.responseDeadline).getTime() < now &&
       (i.status === 'OPEN' || i.status === 'IN_PROGRESS'),
   );
@@ -302,9 +305,14 @@ function RegulatoryCard({
   now: number;
 }) {
   const deadlineMs = item.responseDeadline ? new Date(item.responseDeadline).getTime() : null;
+  // `now` is 0 until the client clock is known; skip the comparison until then
+  // rather than reporting every deadline as decades overdue on first paint.
+  const clockReady = now > 0;
   const overdue =
-    deadlineMs !== null && deadlineMs < now && (item.status === 'OPEN' || item.status === 'IN_PROGRESS');
-  const dueSoon = deadlineMs !== null && !overdue && deadlineMs - now < 14 * 86400000;
+    clockReady && deadlineMs !== null && deadlineMs < now &&
+    (item.status === 'OPEN' || item.status === 'IN_PROGRESS');
+  const dueSoon =
+    clockReady && deadlineMs !== null && !overdue && deadlineMs - now < 14 * 86400000;
 
   return (
     <article

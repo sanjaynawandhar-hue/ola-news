@@ -54,6 +54,7 @@ export const feedQuerySchema = z.object({
   verification: list,
   from: isoDate,
   to: isoDate,
+  withinDays: numeric(1, 3650),
   minRelevance: numeric(0, 100),
   bookmarkedOnly: bool,
   importantOnly: bool,

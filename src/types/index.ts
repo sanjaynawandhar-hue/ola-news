@@ -162,6 +162,12 @@ export interface FeedQuery {
   verification?: string[];
   from?: string;
   to?: string;
+  /**
+   * Relative window in days, resolved server-side. Preferred over `from` for
+   * links: an absolute timestamp differs between the server and client render
+   * (a hydration mismatch) and goes stale the moment the link is shared.
+   */
+  withinDays?: number;
   minRelevance?: number;
   bookmarkedOnly?: boolean;
   importantOnly?: boolean;

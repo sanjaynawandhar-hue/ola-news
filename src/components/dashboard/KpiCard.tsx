@@ -1,44 +1,87 @@
 'use client';
 
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InfoTip, Skeleton } from '@/components/ui';
 
+const TONES = {
+  default: 'text-[var(--fg)]',
+  accent: 'text-[var(--accent)]',
+  positive: 'text-[var(--color-positive)]',
+  negative: 'text-[var(--color-negative)]',
+  warning: 'text-[var(--color-riskHigh)]',
+} as const;
+
 export function KpiCard({
-  label, value, sublabel, tooltip, tone = 'default', loading, icon,
+  label, value, sublabel, tooltip, tone = 'default', loading, icon, href, linkLabel,
 }: {
   label: string;
   value: number | string;
   sublabel?: string;
   tooltip?: string;
-  tone?: 'default' | 'accent' | 'positive' | 'negative' | 'warning';
+  tone?: keyof typeof TONES;
   loading?: boolean;
   icon?: React.ReactNode;
+  /**
+   * Where this number came from. When set, the whole tile becomes a link to
+   * the filtered view that produced it — a metric the reader cannot drill into
+   * is just a number they have to take on trust.
+   */
+  href?: string;
+  /** Accessible description of the destination, e.g. "View 35 stories". */
+  linkLabel?: string;
 }) {
-  const tones = {
-    default: 'text-[var(--fg)]',
-    accent: 'text-[var(--accent)]',
-    positive: 'text-[var(--color-positive)]',
-    negative: 'text-[var(--color-negative)]',
-    warning: 'text-[var(--color-riskHigh)]',
-  };
-
-  return (
-    <div className="surface rounded-xl p-3.5 sm:p-4">
+  const body = (
+    <>
       <div className="flex items-center gap-1.5">
         <span className="truncate text-[11px] font-medium uppercase tracking-wide text-subtle">
           {label}
         </span>
         {tooltip ? <InfoTip label={tooltip} /> : null}
-        {icon ? <span className="ml-auto text-[var(--fg-subtle)]">{icon}</span> : null}
+        <span className="ml-auto flex items-center gap-1 text-[var(--fg-subtle)]">
+          {icon}
+          {href ? (
+            <ArrowUpRight
+              className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+              aria-hidden="true"
+            />
+          ) : null}
+        </span>
       </div>
+
       {loading ? (
         <Skeleton className="mt-2 h-8 w-20" />
       ) : (
-        <p className={cn('mt-1.5 text-2xl font-semibold tabular-nums tracking-tight sm:text-[1.75rem]', tones[tone])}>
+        <p
+          className={cn(
+            'mt-1.5 text-2xl font-semibold tabular-nums tracking-tight sm:text-[1.75rem]',
+            TONES[tone],
+            href && 'underline-offset-4 group-hover:underline',
+          )}
+        >
           {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
         </p>
       )}
+
       {sublabel ? <p className="mt-0.5 truncate text-[11px] text-subtle">{sublabel}</p> : null}
-    </div>
+    </>
+  );
+
+  if (!href) {
+    return <div className="surface rounded-xl p-3.5 sm:p-4">{body}</div>;
+  }
+
+  return (
+    <Link
+      href={href}
+      aria-label={linkLabel ?? `${label}: ${value}. View the matching stories.`}
+      className={cn(
+        'surface group block rounded-xl p-3.5 transition-colors sm:p-4',
+        'hover:border-[var(--accent)] focus-visible:border-[var(--accent)]',
+      )}
+    >
+      {body}
+    </Link>
   );
 }

@@ -19,6 +19,48 @@ import type { FeedArticle, FeedQuery, Paged } from '@/types';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Reads the full filter state out of the URL.
+ *
+ * The overview's KPI tiles and company tabs link straight into this page with
+ * filters attached ("show me those 35 stories"), so every filter the panel can
+ * set must round-trip through the address bar — not just the search term.
+ */
+function queryFromUrl(params: URLSearchParams): FeedQuery {
+  const list = (key: string): string[] | undefined => {
+    const raw = params.get(key);
+    if (!raw) return undefined;
+    const values = raw.split(',').map((v) => v.trim()).filter(Boolean);
+    return values.length ? values : undefined;
+  };
+
+  const sort = params.get('sort');
+  const validSort: FeedQuery['sort'][] = ['recent', 'relevance', 'importance', 'risk', 'sentiment'];
+
+  return {
+    q: params.get('q') ?? undefined,
+    groups: list('groups'),
+    companies: list('companies'),
+    brands: list('brands'),
+    sources: list('sources'),
+    sourceTypes: list('sourceTypes'),
+    countries: list('countries'),
+    languages: list('languages'),
+    categories: list('categories'),
+    topics: list('topics'),
+    sentiments: list('sentiments'),
+    riskLevels: list('riskLevels'),
+    verification: list('verification'),
+    from: params.get('from') ?? undefined,
+    to: params.get('to') ?? undefined,
+    withinDays: params.get('withinDays') ? Number(params.get('withinDays')) : undefined,
+    bookmarkedOnly: params.get('bookmarkedOnly') === 'true' || undefined,
+    importantOnly: params.get('importantOnly') === 'true' || undefined,
+    includeDemo: params.get('includeDemo') === 'false' ? false : undefined,
+    sort: (validSort.includes(params.get('sort') as FeedQuery['sort']) ? sort : 'recent') as FeedQuery['sort'],
+  };
+}
+
 /** Serialises the filter state into the API query string. */
 function buildQueryString(query: FeedQuery, page: number): string {
   const params = new URLSearchParams();
@@ -39,6 +81,7 @@ function buildQueryString(query: FeedQuery, page: number): string {
   setList('verification', query.verification);
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
+  if (query.withinDays) params.set('withinDays', String(query.withinDays));
   if (query.bookmarkedOnly) params.set('bookmarkedOnly', 'true');
   if (query.importantOnly) params.set('importantOnly', 'true');
   if (query.includeDemo === false) params.set('includeDemo', 'false');
@@ -63,19 +106,17 @@ export function FeedClient() {
   const [viewName, setViewName] = React.useState('');
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
-  // Seed the query from the URL so header search and topic links deep-link in.
-  const [query, setQuery] = React.useState<FeedQuery>(() => ({
-    q: searchParams.get('q') ?? undefined,
-    sort: 'recent',
-  }));
+  // Seed from the URL so a link carrying filters lands on exactly that view.
+  const [query, setQuery] = React.useState<FeedQuery>(() => queryFromUrl(searchParams));
 
-  // The header search box writes `q` into the URL; mirror it into the local
-  // query during render rather than from an effect.
-  const urlQuery = searchParams.get('q') ?? undefined;
-  const [lastUrlQuery, setLastUrlQuery] = React.useState(urlQuery);
-  if (urlQuery !== lastUrlQuery) {
-    setLastUrlQuery(urlQuery);
-    setQuery((current) => ({ ...current, q: urlQuery }));
+  // Re-seed whenever the URL changes — a new deep link, or the header search
+  // box writing `q`. Adjusting state during render is React's documented
+  // alternative to a syncing effect.
+  const urlKey = searchParams.toString();
+  const [lastUrlKey, setLastUrlKey] = React.useState(urlKey);
+  if (urlKey !== lastUrlKey) {
+    setLastUrlKey(urlKey);
+    setQuery(queryFromUrl(searchParams));
     setPage(1);
     setAccumulated([]);
   }

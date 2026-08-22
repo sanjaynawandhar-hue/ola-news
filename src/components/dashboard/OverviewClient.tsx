@@ -46,6 +46,25 @@ export function OverviewClient() {
     [dataVersion, group, days],
   );
 
+  /**
+   * Links every tile to the feed view that produced its number, carrying the
+   * same company-group and date scope. A metric with no way to drill into it
+   * is a number the reader has to take on trust.
+   */
+  const feedLink = React.useCallback(
+    (extra: Record<string, string> = {}, scoped = true) => {
+      const params = new URLSearchParams();
+      if (group !== 'all') params.set('groups', group);
+      // A relative window, not a timestamp: identical on the server and client
+      // render, and still correct when the link is shared tomorrow.
+      if (scoped) params.set('withinDays', String(days));
+      for (const [key, value] of Object.entries(extra)) params.set(key, value);
+      const qs = params.toString();
+      return `/feed${qs ? `?${qs}` : ''}`;
+    },
+    [group, days],
+  );
+
   const totals = data?.totals;
   const rangeLabel =
     days === 1 ? 'last 24 hours' : days === 365 ? 'last 12 months' : `last ${days} days`;
@@ -82,19 +101,33 @@ export function OverviewClient() {
         </div>
       ) : null}
 
-      <Tabs
-        tabs={GROUP_TABS.map((tab) => ({
-          value: tab.value,
-          label: tab.label,
-          count:
-            tab.value === 'all'
-              ? data?.totals.last30d
-              : data?.byGroup.find((g) => g.group === tab.value)?.total,
-        }))}
-        value={group}
-        onChange={setGroup}
-        className="max-w-2xl"
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Tabs
+          tabs={GROUP_TABS.map((tab) => ({
+            value: tab.value,
+            label: tab.label,
+            count:
+              tab.value === 'all'
+                ? data?.totals.last30d
+                : data?.byGroup.find((g) => g.group === tab.value)?.total,
+          }))}
+          value={group}
+          onChange={setGroup}
+          className="max-w-2xl"
+        />
+        {/*
+          The tabs rescope this page; this opens the same selection as an
+          actual list of stories, which is what a reader wants after seeing a
+          count they cannot otherwise inspect.
+        */}
+        <Link
+          href={feedLink({ sort: 'recent' })}
+          className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-[var(--accent)] hover:underline"
+        >
+          Open these stories in the feed
+          <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+        </Link>
+      </div>
 
       {emptyDataset ? (
         <EmptyState
@@ -109,34 +142,50 @@ export function OverviewClient() {
         <KpiCard
           label="Total stories" value={totals?.all ?? 0} loading={loading}
           sublabel="All time, after de-duplication"
-          tooltip="Every stored story that passed the relevance threshold, across the whole history of this database."
+          tooltip="Every stored story that passed the relevance threshold, across the whole history of this database. Click to open them in the feed."
           icon={<Newspaper className="h-3.5 w-3.5" aria-hidden="true" />}
+          href={feedLink({ sort: 'recent' }, false)}
+          linkLabel={`View all ${totals?.all ?? 0} stories in the feed`}
         />
         <KpiCard
           label="Last 24 hours" value={totals?.last24h ?? 0} loading={loading} tone="accent"
           sublabel={`${totals?.last7d ?? 0} in 7d · ${totals?.last30d ?? 0} in 30d`}
-          tooltip="Stories whose publication timestamp falls within the last 24 hours."
+          tooltip="Stories whose publication timestamp falls within the last 24 hours. Click to open them in the feed."
+          href={`/feed?${new URLSearchParams({
+            ...(group !== 'all' ? { groups: group } : {}),
+            withinDays: '1',
+            sort: 'recent',
+          }).toString()}`}
+          linkLabel={`View the ${totals?.last24h ?? 0} stories from the last 24 hours`}
         />
         <KpiCard
           label="Positive" value={totals?.positive ?? 0} loading={loading} tone="positive"
           sublabel={`in the ${rangeLabel}`}
-          tooltip="Automated sentiment estimate from a transparent keyword lexicon. Estimates, not verified facts."
+          tooltip="Automated sentiment estimate from a transparent keyword lexicon. Estimates, not verified facts. Click to open these stories in the feed."
+          href={feedLink({ sentiments: 'POSITIVE', sort: 'recent' })}
+          linkLabel={`View the ${totals?.positive ?? 0} positive stories`}
         />
         <KpiCard
           label="Negative" value={totals?.negative ?? 0} loading={loading} tone="negative"
           sublabel={`${totals?.neutral ?? 0} neutral`}
-          tooltip="Automated sentiment estimate. A story is only labelled positive or negative when enough sentiment-bearing terms are present."
+          tooltip="Automated sentiment estimate. A story is only labelled positive or negative when enough sentiment-bearing terms are present. Click to open these stories in the feed."
+          href={feedLink({ sentiments: 'NEGATIVE', sort: 'recent' })}
+          linkLabel={`View the ${totals?.negative ?? 0} negative stories`}
         />
         <KpiCard
           label="High / critical risk" value={totals?.highRisk ?? 0} loading={loading} tone="warning"
           sublabel={`${totals?.criticalAlerts ?? 0} critical`}
-          tooltip="Risk level is estimated from explicit driver keywords (recalls, regulatory action, litigation, financial stress and others), weighted by sentiment and relevance."
+          tooltip="Risk level is estimated from explicit driver keywords (recalls, regulatory action, litigation, financial stress and others), weighted by sentiment and relevance. Click to open these stories in the feed."
           icon={<AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+          href={feedLink({ riskLevels: 'HIGH,CRITICAL', sort: 'risk' })}
+          linkLabel={`View the ${totals?.highRisk ?? 0} high and critical risk stories`}
         />
         <KpiCard
           label="Regulatory items" value={totals?.regulatory ?? 0} loading={loading}
           sublabel="from official sources"
-          tooltip="Stories collected from regulator, exchange, court or government sources in this period."
+          tooltip="Documents from a regulator, exchange, court or ministry that name a tracked company or bind it as a listed issuer or sector participant. Click to open the regulatory tracker."
+          href="/regulatory"
+          linkLabel={`View the ${totals?.regulatory ?? 0} regulatory documents`}
         />
       </section>
 

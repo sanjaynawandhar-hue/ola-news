@@ -157,6 +157,9 @@ function buildWhere(query: FeedQuery): Prisma.ArticleWhereInput {
   if (query.importantOnly) and.push({ important: { some: {} } });
 
   const range: Prisma.DateTimeFilter = {};
+  // Resolved here rather than in the link, so the window is computed once on
+  // the server and a shared link keeps meaning "the last N days".
+  if (query.withinDays) range.gte = new Date(Date.now() - query.withinDays * 86400000);
   if (query.from) range.gte = new Date(query.from);
   if (query.to) range.lte = new Date(query.to);
   if (range.gte || range.lte) and.push({ publishedAt: range });
