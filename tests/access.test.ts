@@ -211,3 +211,28 @@ describe('KPI tiles', () => {
     expect(source).toMatch(/tooltip && !href \? <InfoTip/);
   });
 });
+
+describe('stale data is surfaced, not hidden', () => {
+  /**
+   * The worst failure this dashboard has is collection stopping silently:
+   * every chart still renders, just frozen. That happened for sixteen days
+   * because a scheduled refresh was being rejected and nothing said so.
+   */
+  it('warns on the overview when the last refresh is old', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile('src/components/dashboard/OverviewClient.tsx', 'utf8');
+
+    expect(source).toMatch(/StaleDataWarning/);
+    expect(source).toMatch(/STALE_AFTER_HOURS/);
+    // It must handle "never refreshed" as well as "refreshed long ago".
+    expect(source).toMatch(/No refresh has ever completed/);
+  });
+
+  it('the scheduled endpoint refuses to run unauthenticated', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const route = await readFile('src/app/api/cron/refresh/route.ts', 'utf8');
+    // Returning 401 is correct — but it is invisible, which is why the
+    // staleness warning above exists as the backstop.
+    expect(route).toMatch(/'UNAUTHORISED', 401/);
+  });
+});

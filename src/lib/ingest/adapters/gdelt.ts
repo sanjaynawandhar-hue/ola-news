@@ -82,7 +82,9 @@ export const gdeltAdapter: SourceAdapter = {
         `&mode=ArtList&format=json&maxrecords=${perQuery}&sort=DateDesc&timespan=14d`;
       const { body } = await fetchWithRetry(
         url,
-        { timeoutMs: ctx.timeoutMs, accept: 'application/json' },
+        // No retries: GDELT throttles by IP over a long window, so a retry
+        // almost always fails too and simply spends the run's time budget.
+        { timeoutMs: ctx.timeoutMs, retries: 0, accept: 'application/json' },
         Math.max(ctx.rateLimitMs, 5200),
       );
       let payload: { articles?: GdeltArticle[] };

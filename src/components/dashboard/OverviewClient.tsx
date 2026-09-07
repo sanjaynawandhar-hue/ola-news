@@ -16,6 +16,7 @@ import {
 import { useApi } from '@/hooks/useApi';
 import { useRefresh } from '@/components/refresh/RefreshProvider';
 import { useSettings } from '@/components/providers';
+import { useNow } from '@/hooks/useNow';
 import { COMPANY_GROUP_LABELS, COMPANY_GROUP_SHORT, type CompanyGroup } from '@/lib/constants';
 import { formatDateTime, formatTimeZoneAbbr } from '@/lib/time';
 import type { OverviewMetrics } from '@/lib/queries';
@@ -87,6 +88,14 @@ export function OverviewClient() {
   return (
     <div className="space-y-5">
       <PageHeading rangeLabel={rangeLabel} lastRefreshAt={data?.lastRefreshAt ?? null} />
+
+      {/*
+        Collection failing silently is the worst failure this dashboard has:
+        every number still renders, just frozen. It went unnoticed for sixteen
+        days once. Stale data is now called out on the page itself rather than
+        needing someone to check the Sources tab.
+      */}
+      <StaleDataWarning lastRefreshAt={data?.lastRefreshAt ?? null} loading={loading} />
 
       {data && data.totals.demo > 0 ? (
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -488,6 +497,51 @@ export function OverviewClient() {
           )}
         </CardBody>
       </Card>
+    </div>
+  );
+}
+
+/** Hours before collected news is treated as stale enough to flag. */
+const STALE_AFTER_HOURS = 36;
+
+function StaleDataWarning({
+  lastRefreshAt, loading,
+}: {
+  lastRefreshAt: string | null;
+  loading: boolean;
+}) {
+  const now = useNow();
+  const { settings } = useSettings();
+  if (loading || now === 0) return null;
+
+  const ageHours = lastRefreshAt
+    ? (now - new Date(lastRefreshAt).getTime()) / 3600000
+    : Number.POSITIVE_INFINITY;
+  if (ageHours < STALE_AFTER_HOURS) return null;
+
+  const never = !lastRefreshAt;
+  const ageLabel = never
+    ? 'never'
+    : ageHours >= 48
+      ? `${Math.floor(ageHours / 24)} days ago`
+      : `${Math.round(ageHours)} hours ago`;
+
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2.5 rounded-xl border border-orange-300 bg-orange-50 p-3 text-xs text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200"
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <p>
+        <strong>These numbers are not current.</strong>{' '}
+        {never
+          ? 'No refresh has ever completed, so nothing below reflects live coverage.'
+          : `The last successful collection finished ${ageLabel} (${formatDateTime(lastRefreshAt, settings.timezone)} ${formatTimeZoneAbbr(settings.timezone)}). Everything below is frozen at that point.`}{' '}
+        Press <strong>Refresh news</strong>, or check the{' '}
+        <Link href="/sources" className="underline">Sources</Link> page for connector failures. If
+        this dashboard is published read-only, the scheduled refresh may be failing — see the
+        deployment notes in the README.
+      </p>
     </div>
   );
 }

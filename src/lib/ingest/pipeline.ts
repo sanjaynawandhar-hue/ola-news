@@ -56,7 +56,10 @@ export async function runRefresh(
       enabled: true,
       ...(options.sourceKeys?.length ? { key: { in: options.sourceKeys } } : {}),
     },
-    orderBy: { sortOrder: 'asc' },
+    // Least-recently-successful first. A run that exhausts its time budget
+    // always stops partway, and a fixed order would mean the same sources at
+    // the end never ran at all. This rotates coverage across runs.
+    orderBy: [{ lastSuccessAt: { sort: 'asc', nulls: 'first' } }, { sortOrder: 'asc' }],
   });
 
   const runnable = sources.filter((source) => {

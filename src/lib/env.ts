@@ -23,7 +23,16 @@ export const serverEnv = {
     process.env.OLA_NEWS_USER_AGENT ??
     'OlaNewsBot/1.0 (executive news intelligence dashboard; respects robots.txt)',
   fetchTimeoutMs: Number(process.env.OLA_NEWS_FETCH_TIMEOUT_MS ?? 15000),
-  maxConcurrentSources: Number(process.env.OLA_NEWS_MAX_CONCURRENCY ?? 4),
+  // Source collection is I/O bound and each host is rate limited separately,
+  // so more concurrency costs little and buys headroom against the serverless
+  // wall-clock limit.
+  maxConcurrentSources: Number(process.env.OLA_NEWS_MAX_CONCURRENCY ?? 8),
+  /**
+   * How long one refresh may run before it stops starting new sources.
+   * Comfortably under the platform's hard function limit (300s on Vercel), so
+   * the run finishes and reports itself rather than being killed mid-write.
+   */
+  refreshBudgetMs: Number(process.env.OLA_NEWS_REFRESH_BUDGET_MS ?? 210_000),
   enableDemoData: (process.env.OLA_NEWS_ENABLE_DEMO_DATA ?? 'true') !== 'false',
 
   /** Optional API credentials — each unlocks the matching source adapter. */
